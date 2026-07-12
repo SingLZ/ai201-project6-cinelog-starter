@@ -1,91 +1,128 @@
 # PR Response Doc — CineLog Watchlist Feature
 
 ## AI Usage
-I used AI to help inspect the repository structure, compare the watchlist implementation with the existing collection patterns, identify all call sites affected by the rename, and check the focused test results. I verified the proposed changes against `models.py`, `services/collection_service.py`, and `tests/test_collection.py` before applying them.
+
 
 ## Comment 1 — Rename
-**What I did:** Renamed `save_to_watchlist()` to `add_to_watchlist()` and updated the watchlist route and tests to use the new name.
 
-**How I verified:** Searched the repository for the old function name and ran the focused test suite. No active Python source still calls `save_to_watchlist()`.
+**What I did:**
+I renamed `save_to_watchlist()` to `add_to_watchlist()` in `services/watchlist_service.py`. I also updated the import and function call in `routes/watchlist/watchlist.py`.
+
+**How I verified:**
+I searched the full repository for `save_to_watchlist` and confirmed that no references to the old name remained. I also ran the full test suite.
 
 ## Comment 2 — Deduplication
-**What I did:** Added an `(user_id, film_id)` lookup before insertion and introduced `AlreadyInWatchlistError`. I also added a database unique constraint as a second layer of protection.
 
-**How I verified:** Added a test that inserts the same film twice, expects `AlreadyInWatchlistError`, and confirms that only one row remains in the database. The route maps this condition to HTTP 409.
+**What I did:**
+Before creating a new `WatchlistEntry`, `add_to_watchlist()` now queries for an existing entry with the same `user_id` and `film_id`. If one exists, the function raises `AlreadyInWatchlistError` rather than inserting another row. I also added a database-level unique constraint for the same pair.
+
+**How I verified:**
+I added a test that adds a film to a user's watchlist and then attempts to add the same film again. The test verifies that `AlreadyInWatchlistError` is raised. The database constraint also protects against duplicates if the service-level check is bypassed.
 
 ## Comment 3 — Missing test
-**What I did:** Added a test using a validly formatted UUID that is not present in the database.
 
-**How I verified:** The test confirms that `add_to_watchlist()` raises `FilmNotFoundError` before attempting an insert. The API route maps this error to HTTP 404.
+**What I did:**
+I created `tests/test_watchlist.py` and added a test for a validly formatted UUID that does not correspond to an existing film.
+
+**How I verified:**
+The test calls `add_to_watchlist()` with `00000000-0000-0000-0000-000000000000` and verifies that `FilmNotFoundError` is raised. I modeled the test after `test_add_to_collection_nonexistent_film_raises` in `tests/test_collection.py`.
 
 ## Comment 4 — Default visibility
-**My position:** Keep `public=True` as the default for this version.
 
-**Reasoning:** CineLog is a community film-tracking application, and a public default makes watchlists useful for discovery and sharing without requiring every caller to understand an additional visibility field. It also preserves the behavior of the submitted endpoint, whose request body currently contains only `film_id`.
+**My position:**
+I kept `public=True` as the default for watchlist entries.
 
-**Tradeoff acknowledged:** A public default is less privacy-preserving than a private default. Before CineLog stores sensitive profile information or exposes broader social features, the product should make visibility explicit in the UI and allow users to change it. For this scoped feature, I kept the existing default but documented it rather than treating it as accidental behavior.
+**Reasoning:**
+CineLog is a community film-tracking application, so public lists support discovery and social interaction. A public default makes it easier for users to share films they plan to watch and allows other users to discover films through those lists. This is consistent with optimizing the feature for community participation rather than treating every watchlist as private personal data.
+
+**Tradeoff acknowledged:**
+A public default is less privacy-preserving because some users may not realize their saved films are visible. A private-by-default design would reduce that risk, but it would also make the community aspect of the feature less useful. A future improvement should expose visibility clearly in the API and user interface so users can explicitly choose between public and private lists.
 
 ## Comment 5 — Sort order
-**My position:** I accepted the reviewer’s newest-added-first recommendation.
 
-**Reasoning:** A watchlist is primarily a queue of recent intent: users commonly return to see what they saved most recently. Newest-first also matches the established behavior of `get_collection()`, which reduces surprise across CineLog’s list endpoints.
+**My position:**
+I changed the default sort order from alphabetical to newest-added-first.
 
-**Engagement with reviewer's point:** Alphabetical sorting makes a large watchlist easier to scan for a known title, but it hides the chronology of additions. Search or an explicit sort option would address that use case more directly. Until CineLog supports configurable sorting, newest-first is the better default.
+**Reasoning:**
+A watchlist represents a user's current intent. Films added recently are usually more relevant than films saved much earlier. Newest-first ordering also matches the existing `get_collection()` behavior, which orders collection entries by `date_added` descending. Keeping both features consistent makes the API easier to understand.
+
+**Engagement with reviewer's point:**
+I agree that users are more likely to look for something they recently saved than to browse their entire watchlist alphabetically. Alphabetical sorting remains useful for large lists, but it would be better implemented later as an explicit sorting option rather than as the default.
 
 ## Comment 6 — Rebase
-**What conflicted:** The feature branch was based on integer film IDs while `main` had migrated `Film.id` and collection foreign keys to UUID strings. The watchlist model also needed to be restored using the post-refactor schema.
 
-**How I resolved it:** Rebasing preserved the UUID-based `Film` model from `main`. I defined `WatchlistEntry.film_id` as `db.String(36)`, updated service and route documentation to expect UUID strings, and used UUIDs throughout the tests.
+**What conflicted:**
+The updated `main` branch changed film identifiers from integers to UUID strings. The watchlist model and service code were still based on the earlier integer-ID implementation.
 
-**How I verified no conflict remains:** The branch rebased successfully onto `main`, `git status` reports no unresolved paths, the history contains no new merge commit on the feature branch, and the focused tests pass.
+**How I resolved it:**
+I rebased `feature/watchlist` onto `origin/main`. During conflict resolution, I retained the UUID implementation from `main` and updated `WatchlistEntry.user_id`, `WatchlistEntry.film_id`, service parameters, and tests to use UUID strings. Film lookup now uses `db.session.get(Film, film_id)`.
+
+**How I verified no conflict remains:**
+I ran the full test suite and checked the branch history for merge commits. I also searched the watchlist implementation to confirm that no integer film-ID declarations remained.
 
 ## PR Description
-### Feature overview
-Adds a watchlist model, service layer, and REST endpoints for saving films a user wants to watch. The implementation follows the existing collection feature’s naming, UUID, validation, deduplication, and newest-first ordering patterns.
+
+### Overview
+
+This pull request adds a watchlist feature to CineLog. Users can add films they plan to watch and retrieve their saved watchlist through the REST API.
+
+The implementation includes:
+
+* A `WatchlistEntry` database model
+* An `add_to_watchlist()` service function
+* Duplicate-entry prevention
+* Missing-film validation
+* REST endpoints for adding and retrieving watchlist entries
+* UUID-compatible user and film identifiers
+* Automated watchlist tests
 
 ### Design decisions
-- Watchlists remain public by default for community discovery, with the privacy tradeoff documented above.
-- Watchlists are returned newest-first to match recent user intent and the collection endpoint.
-- Duplicate additions return a domain error and HTTP 409 rather than silently succeeding.
 
-### Manual testing steps
-1. Start the application with `python app.py`.
-2. Create or identify a user UUID and an existing film UUID.
-3. POST `{"film_id": "<film-uuid>"}` to `/watchlist/<user-uuid>/add`; expect HTTP 201.
-4. Repeat the same request; expect HTTP 409.
-5. Submit a nonexistent film UUID; expect HTTP 404.
-6. GET `/watchlist/<user-uuid>` and confirm entries are ordered newest-first.
-# PR Response Doc — CineLog Watchlist Feature
+Watchlists default to `public=True` because CineLog is a community film-tracking application and public lists support film discovery and sharing. The tradeoff is that public-by-default behavior is less privacy-preserving, so a future interface should make visibility explicit to users.
 
-## AI Usage
-<!-- Fill in at the end — how you used AI tools during this project -->
+Watchlists are ordered by `date_added` descending. This places recently saved films first and matches the behavior of CineLog's existing collection service.
 
-## Comment 1 — Rename
-**What I did:**
-**How I verified:**
+### Manual testing
 
-## Comment 2 — Deduplication
-**What I did:**
-**How I verified:**
+1. Install the dependencies:
 
-## Comment 3 — Missing test
-**What I did:**
-**How I verified:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Comment 4 — Default visibility
-**My position:**
-**Reasoning:**
-**Tradeoff acknowledged:**
+2. Start the Flask application:
 
-## Comment 5 — Sort order
-**My position:**
-**Reasoning:**
-**Engagement with reviewer's point:**
+   ```bash
+   python app.py
+   ```
 
-## Comment 6 — Rebase
-**What conflicted:**
-**How I resolved it:**
-**How I verified no conflict remains:**
+3. Add an existing film to a user's watchlist:
 
-## PR Description
-<!-- Written at the end — feature overview, design decisions, manual testing steps -->
+   ```bash
+   curl -X POST \
+     http://127.0.0.1:5000/watchlist/<user_id>/add \
+     -H "Content-Type: application/json" \
+     -d '{"film_id":"<film_uuid>"}'
+   ```
+
+4. Repeat the same request and verify that the API returns a duplicate-entry error.
+
+5. Send a request using a nonexistent UUID and verify that the API returns a not-found error.
+
+6. Retrieve the user's watchlist:
+
+   ```bash
+   curl http://127.0.0.1:5000/watchlist/<user_id>
+   ```
+
+7. Verify that the newest entry appears first.
+
+8. Run the automated tests:
+
+   ```bash
+   pytest tests/ -v
+   ```
+
+## Git history screenshot
+
+Add the `git log --oneline` screenshot here before submission.
