@@ -1,7 +1,7 @@
 # PR Response Doc — CineLog Watchlist Feature
 
 ## AI Usage
-
+I used AI to help orient myself in the codebase by comparing the watchlist implementation with add_to_collection() and the existing collection tests. I also used AI to identify possible counterarguments for the visibility and sorting decisions. I verified all suggestions against the actual project code and made the final design decisions based on CineLog's existing behavior.
 
 ## Comment 1 — Rename
 
@@ -125,4 +125,4 @@ Watchlists are ordered by `date_added` descending. This places recently saved fi
 
 ## Git history screenshot
 
-![Git log screenshot](screenshot.png)
+![Git log screenshot](Screenshot.png)
