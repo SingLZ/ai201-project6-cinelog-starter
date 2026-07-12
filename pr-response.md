@@ -125,4 +125,4 @@ Watchlists are ordered by `date_added` descending. This places recently saved fi
 
 ## Git history screenshot
 
-Add the `git log --oneline` screenshot here before submission.
+![Git log screenshot](screenshot.png)
