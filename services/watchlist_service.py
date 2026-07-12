@@ -28,6 +28,7 @@ def add_to_watchlist(user_id, film_id):
         FilmNotFoundError: If film_id does not exist.
     """
     film = db.session.get(Film, film_id)
+
     if film is None:
         raise FilmNotFoundError(f"No film found with id '{film_id}'")
 
