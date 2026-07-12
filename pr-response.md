@@ -22,15 +22,15 @@ I added a test that adds a film to a user's watchlist and then attempts to add t
 ## Comment 3 — Missing test
 
 **What I did:**
-I created `tests/test_watchlist.py` and added a test for a validly formatted UUID that does not correspond to an existing film.
+I created tests/test_watchlist.py and added a test for a validly formatted UUID that does not correspond to an existing film.
 
 **How I verified:**
-The test calls `add_to_watchlist()` with `00000000-0000-0000-0000-000000000000` and verifies that `FilmNotFoundError` is raised. I modeled the test after `test_add_to_collection_nonexistent_film_raises` in `tests/test_collection.py`.
+The test calls add_to_watchlist() with 00000000-0000-0000-0000-000000000000 and verifies that FilmNotFoundError is raised. I modeled the test after test_add_to_collection_nonexistent_film_raises in tests/test_collection.py.
 
 ## Comment 4 — Default visibility
 
 **My position:**
-I kept `public=True` as the default for watchlist entries.
+I kept public=True as the default for watchlist entries.
 
 **Reasoning:**
 CineLog is a community film-tracking application, so public lists support discovery and social interaction. A public default makes it easier for users to share films they plan to watch and allows other users to discover films through those lists. This is consistent with optimizing the feature for community participation rather than treating every watchlist as private personal data.
@@ -44,7 +44,7 @@ A public default is less privacy-preserving because some users may not realize t
 I changed the default sort order from alphabetical to newest-added-first.
 
 **Reasoning:**
-A watchlist represents a user's current intent. Films added recently are usually more relevant than films saved much earlier. Newest-first ordering also matches the existing `get_collection()` behavior, which orders collection entries by `date_added` descending. Keeping both features consistent makes the API easier to understand.
+A watchlist represents a user's current intent. Films added recently are usually more relevant than films saved much earlier. Newest-first ordering also matches the existing get_collection() behavior, which orders collection entries by date_added descending. Keeping both features consistent makes the API easier to understand.
 
 **Engagement with reviewer's point:**
 I agree that users are more likely to look for something they recently saved than to browse their entire watchlist alphabetically. Alphabetical sorting remains useful for large lists, but it would be better implemented later as an explicit sorting option rather than as the default.
@@ -52,10 +52,10 @@ I agree that users are more likely to look for something they recently saved tha
 ## Comment 6 — Rebase
 
 **What conflicted:**
-The updated `main` branch changed film identifiers from integers to UUID strings. The watchlist model and service code were still based on the earlier integer-ID implementation.
+The updated main branch changed film identifiers from integers to UUID strings. The watchlist model and service code were still based on the earlier integer-ID implementation.
 
 **How I resolved it:**
-I rebased `feature/watchlist` onto `origin/main`. During conflict resolution, I retained the UUID implementation from `main` and updated `WatchlistEntry.user_id`, `WatchlistEntry.film_id`, service parameters, and tests to use UUID strings. Film lookup now uses `db.session.get(Film, film_id)`.
+I rebased feature/watchlist onto origin/main. During conflict resolution, I retained the UUID implementation from main and updated WatchlistEntry.user_id, WatchlistEntry.film_id, service parameters, and tests to use UUID strings. Film lookup now uses db.session.get(Film, film_id).
 
 **How I verified no conflict remains:**
 I ran the full test suite and checked the branch history for merge commits. I also searched the watchlist implementation to confirm that no integer film-ID declarations remained.
